@@ -1,0 +1,5 @@
+.idea/
+charges-processing.iml
+*/.DS_Store
+target/
+src/main/.DS_Store
