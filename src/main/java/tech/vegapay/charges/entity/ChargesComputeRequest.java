@@ -1,8 +1,7 @@
 package tech.vegapay.charges.entity;
 
 import lombok.Data;
-import lombok.Getter;
-import tech.vegapay.charges.entity.charge.Category;
+import tech.vegapay.commons.dto.charges.Category;
 
 @Data
 public class ChargesComputeRequest {

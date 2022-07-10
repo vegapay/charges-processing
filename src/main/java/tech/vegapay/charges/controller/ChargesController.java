@@ -3,11 +3,8 @@ package tech.vegapay.charges.controller;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import tech.vegapay.charges.entity.*;
-import tech.vegapay.charges.entity.charge.Category;
-import tech.vegapay.charges.entity.charge.Charges;
-import tech.vegapay.charges.entity.charge.ChargesDTO;
-import tech.vegapay.charges.entity.charge.ChargesType;
+import tech.vegapay.charges.entity.ChargesComputeRequest;
+import tech.vegapay.commons.dto.charges.*;
 
 import java.util.Date;
 import java.util.concurrent.TimeUnit;
