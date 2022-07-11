@@ -1,9 +1,14 @@
 package tech.vegapay.charges.controller;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import tech.vegapay.charges.entity.ChargesComputeRequest;
+import tech.vegapay.charges.handler.Bill;
+import tech.vegapay.charges.handler.Program;
+import tech.vegapay.commons.dto.BillingDto;
+import tech.vegapay.commons.dto.policies.AllPolicies;
 import tech.vegapay.commons.dto.policies.charges.*;
 
 import java.util.Date;
@@ -14,21 +19,30 @@ import java.util.concurrent.TimeUnit;
 @RequestMapping("/chargesProcessing")
 public class ChargesController {
 
+    @Autowired
+    Bill bill;
+
+    @Autowired
+    Program program;
+
     @PostMapping("/get")
     public ResponseEntity<Float> getCharges(@RequestBody ChargesComputeRequest charges) {
         //we need to fetch charges file/json using programId
-        ChargePolicy chargePolicy = new ChargePolicy();
+
+        AllPolicies allPolicies = program.getProgramPolicy(charges.getProgramId());
+        ChargePolicy chargePolicy = allPolicies.getChargePolicy();
         double value = 0;
-        double billAmount = 0;
+        BillingDto tempBill = bill.getBill(charges.getBillId());
         switch (charges.getEventType()) {
+            //todo :: fix start date here..
             case BILL_DATE_TO_DUE_DATE:
-                value = computeCharges(chargePolicy.getChargeRules(), charges.getEventType(), new Date(), billAmount);
+                value = computeCharges(chargePolicy.getChargeRules(), charges.getEventType(), tempBill.getBillDate(), tempBill.getBillAmount());
                 break;
             case DUE_DATE_TO_HARD_BLOCK:
-                value = computeCharges(chargePolicy.getChargeRules(), charges.getEventType(), new Date(), billAmount);
+                value = computeCharges(chargePolicy.getChargeRules(), charges.getEventType(), tempBill.getBillPaymentDate(), tempBill.getBillAmount());
                 break;
             case HARD_BLOCK_TO_PERMANENT_BLOCK:
-                value = computeCharges(chargePolicy.getChargeRules(), charges.getEventType(), new Date(), billAmount);
+                value = computeCharges(chargePolicy.getChargeRules(), charges.getEventType(), new Date(), tempBill.getBillAmount());
                 break;
             default:
                 value = 10;
