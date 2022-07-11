@@ -9,6 +9,7 @@ import tech.vegapay.charges.handler.Bill;
 import tech.vegapay.charges.handler.Program;
 import tech.vegapay.commons.dto.BillingDto;
 import tech.vegapay.commons.dto.policies.AllPolicies;
+import tech.vegapay.commons.dto.policies.BNPLPolicy;
 import tech.vegapay.commons.dto.policies.charges.*;
 
 import java.util.Date;
@@ -31,18 +32,19 @@ public class ChargesController {
 
         AllPolicies allPolicies = program.getProgramPolicy(charges.getProgramId());
         ChargePolicy chargePolicy = allPolicies.getChargePolicy();
+        BNPLPolicy bnplPolicy = allPolicies.getBnplPolicy();
         double value = 0;
         BillingDto tempBill = bill.getBill(charges.getBillId());
         switch (charges.getEventType()) {
             //todo :: fix start date here..
             case BILL_DATE_TO_DUE_DATE:
-                value = computeCharges(chargePolicy.getChargeRules(), charges.getEventType(), tempBill.getBillDate(), tempBill.getBillAmount());
+                value = computeCharges(chargePolicy.getChargeRules(), charges.getEventType(), new Date(Date.parse(bnplPolicy.getBillDate())), tempBill.getBillAmount());
                 break;
             case DUE_DATE_TO_HARD_BLOCK:
-                value = computeCharges(chargePolicy.getChargeRules(), charges.getEventType(), tempBill.getBillPaymentDate(), tempBill.getBillAmount());
+                value = computeCharges(chargePolicy.getChargeRules(), charges.getEventType(), new Date(Date.parse(bnplPolicy.getDueDate())), tempBill.getBillAmount());
                 break;
             case HARD_BLOCK_TO_PERMANENT_BLOCK:
-                value = computeCharges(chargePolicy.getChargeRules(), charges.getEventType(), new Date(), tempBill.getBillAmount());
+                value = computeCharges(chargePolicy.getChargeRules(), charges.getEventType(), new Date(Date.parse(bnplPolicy.getHardDueDate())), tempBill.getBillAmount());
                 break;
             default:
                 value = 10;
