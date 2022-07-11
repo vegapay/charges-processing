@@ -1,11 +1,11 @@
 package tech.vegapay.charges.entity;
 
 import lombok.Data;
-import tech.vegapay.commons.dto.charges.Category;
+import tech.vegapay.commons.dto.policies.charges.ChargeCategory;
 
 @Data
 public class ChargesComputeRequest {
-    Category eventType;
+    ChargeCategory eventType;
     String programId;
     String customerId;
     String transactionId;
