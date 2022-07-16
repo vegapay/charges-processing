@@ -1,7 +1,13 @@
 package tech.vegapay.charges.handler;
 
-import tech.vegapay.commons.dto.BillingDto;
+import tech.vegapay.commons.dto.BillDto;
+
+import java.util.List;
 
 public interface Bill {
-    BillingDto getBill(String billId);
+    BillDto getBill(String billId);
+
+    List<BillDto> getBillByAccountId(String accountId);
+
+    BillDto getLatestBill(String accountId);
 }
