@@ -90,6 +90,8 @@ public class ChargeProcessingService {
         double value = 0;
         BillDto tempBill = bill.getBill(charges.getBillId());
 
+        // for testing changing bill due date;
+        tempBill.setBillDate(new Date("2022/06/17 00:00:00"));
         switch (charges.getEventType()) {
             //todo :: fix start date here..
             case BILL_DATE_TO_DUE_DATE:
