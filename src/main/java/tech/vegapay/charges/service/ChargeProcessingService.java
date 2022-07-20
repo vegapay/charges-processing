@@ -7,17 +7,12 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
 import tech.vegapay.charges.dto.ChargesComputeRequest;
-import tech.vegapay.charges.handler.Account;
-import tech.vegapay.charges.handler.Bill;
-import tech.vegapay.charges.handler.Charge;
-import tech.vegapay.charges.handler.Program;
-import tech.vegapay.commons.dto.AccountDto;
-import tech.vegapay.commons.dto.BillDto;
-import tech.vegapay.commons.dto.BillStatus;
-import tech.vegapay.commons.dto.ChargeDto;
+import tech.vegapay.charges.handler.*;
+import tech.vegapay.commons.dto.*;
 import tech.vegapay.commons.dto.policies.AllPolicies;
 import tech.vegapay.commons.dto.policies.BNPLPolicy;
 import tech.vegapay.commons.dto.policies.charges.*;
+import tech.vegapay.commons.utils.ChargeTransformation;
 
 import java.sql.Timestamp;
 import java.util.*;
@@ -38,6 +33,12 @@ public class ChargeProcessingService {
 
     @Autowired
     private Charge charge;
+
+    @Autowired
+    private Ledger ledger;
+
+    @Autowired
+    private Transaction transaction;
 
     @Autowired
     private KafkaTemplate<String, Object> kafkaTemplate;
@@ -76,7 +77,7 @@ public class ChargeProcessingService {
 
         chargeDto = charge.createCharge(chargeDto);
 
-        if(charges != null && chargeDto.getId() != null){
+        if (charges != null && chargeDto.getId() != null) {
             log.info("Charge Created Successfully for account Id {}", tempBill.getAccountId());
         }
     }
@@ -110,7 +111,7 @@ public class ChargeProcessingService {
         return value;
     }
 
-    public Date calculateDate(BillDto billDto, String date){
+    public Date calculateDate(BillDto billDto, String date) {
         Calendar calendar = Calendar.getInstance();
         calendar.setTime(billDto.getBillDate());
         calendar.set(Calendar.DATE, Integer.parseInt(date));
@@ -174,9 +175,9 @@ public class ChargeProcessingService {
         Assert.notNull(eventType, "eventType cannot be null");
 
         //find all accountIds for programId
-        List<AccountDto> accountDtoList =  account.getAllAccountsByProgramId(programId);
+        List<AccountDto> accountDtoList = account.getAllAccountsByProgramId(programId);
 
-        if (accountDtoList == null){
+        if (accountDtoList == null) {
             log.error("No accounts found for programId : {}", programId);
             return;
         }
@@ -185,25 +186,62 @@ public class ChargeProcessingService {
             try {
                 // find bill for account ids
                 BillDto billDto = bill.getLatestBill(it.getAccountId());
-                if (billDto == null){
+                if (billDto == null) {
                     log.error("No bill found for accountId : {}", it.getAccountId());
                     return;
                 }
 
                 // filter bills based on status
-                if(Arrays.asList(BillStatus.UNPAID, BillStatus.PARTIAL_PAID).contains(billDto.getStatus())){
+                if (Arrays.asList(BillStatus.UNPAID, BillStatus.PARTIAL_PAID).contains(billDto.getStatus())) {
                     HashMap<String, Object> map = new HashMap<String, Object>() {{
                         put("billId", billDto.getId());
                         put("eventType", eventType);
                     }};
 
                     // Push the filtered bills id to kafka with eventType
-                    kafkaTemplate.send(kafkaChargeProcessingTopicByBillId, billDto.getId().toString(),map);
+                    kafkaTemplate.send(kafkaChargeProcessingTopicByBillId, billDto.getId().toString(), map);
                 }
             } catch (Exception e) {
                 log.error("Error while processing bill for accountId : {}", it.getAccountId());
             }
         });
 
+    }
+
+    public String applyTransactionCharges(ChargesComputeRequest chargesComputeRequest) {
+
+        Double charges = getCharges(
+                ChargesComputeRequest
+                        .builder()
+                        .transactionId(chargesComputeRequest.getTransactionId())
+                        .programId(chargesComputeRequest.getProgramId())
+                        .eventType(ChargeCategory.TRANSACTION)
+                        .build()
+        );
+
+        ChargeDto chargeDto = ChargeDto.builder()
+                .id(UUID.randomUUID())
+                .chargeId(UUID.randomUUID().toString())
+                .chargeAmount(charges.longValue())
+                .accountId("ACCOUNT_ID")
+                .description("Charge For " + ChargeCategory.TRANSACTION.toString())
+                .createdAt(new Timestamp(System.currentTimeMillis()))
+                .updatedAt(new Timestamp(System.currentTimeMillis()))
+                .build();
+
+        chargeDto = charge.createCharge(chargeDto);
+
+
+        if (charges != null && chargeDto.getId() != null) {
+            log.info("Charge Created Successfully for transaction Id {}", chargesComputeRequest.getTransactionId());
+        }
+
+        TransactionDto transactionDto = ChargeTransformation.toTransaction(chargeDto);
+        transaction.createTransaction(transactionDto);
+
+        LedgerEntryDto ledgerEntryDto = ChargeTransformation.toLedgerEntry(chargeDto);
+        ledger.createLedgerEntry(ledgerEntryDto);
+
+        return "";
     }
 }

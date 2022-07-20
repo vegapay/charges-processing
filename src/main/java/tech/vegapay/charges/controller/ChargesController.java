@@ -15,7 +15,7 @@ public class ChargesController {
 
     private ChargeProcessingService chargeProcessingService;
 
-    public ChargesController(ChargeProcessingService chargeProcessingService){
+    public ChargesController(ChargeProcessingService chargeProcessingService) {
         this.chargeProcessingService = chargeProcessingService;
     }
 
@@ -24,8 +24,18 @@ public class ChargesController {
         log.info("Received Request to getCharges with Request Body {}", charges);
         try {
             return new ResponseEntity<>(chargeProcessingService.getCharges(charges), HttpStatus.OK);
-        } catch (Exception ex ){
+        } catch (Exception ex) {
             return new ResponseEntity<>(0D, HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    @PostMapping("/get")
+    public ResponseEntity<String> applyTransactionCharges(@RequestBody ChargesComputeRequest chargesComputeRequest) {
+        log.info("Received Request to applyTransactionCharges with Request Body {}", chargesComputeRequest);
+        try {
+            return new ResponseEntity<>(chargeProcessingService.applyTransactionCharges(chargesComputeRequest), HttpStatus.OK);
+        } catch (Exception ex) {
+            return new ResponseEntity<>("", HttpStatus.BAD_REQUEST);
         }
     }
 }
