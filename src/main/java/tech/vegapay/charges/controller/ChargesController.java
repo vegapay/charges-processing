@@ -29,7 +29,7 @@ public class ChargesController {
         }
     }
 
-    @PostMapping("/get")
+    @PostMapping("/applyTransactionCharges")
     public ResponseEntity<String> applyTransactionCharges(@RequestBody ChargesComputeRequest chargesComputeRequest) {
         log.info("Received Request to applyTransactionCharges with Request Body {}", chargesComputeRequest);
         try {

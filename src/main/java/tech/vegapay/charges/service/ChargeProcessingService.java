@@ -210,6 +210,8 @@ public class ChargeProcessingService {
 
     public String applyTransactionCharges(ChargesComputeRequest chargesComputeRequest) {
 
+        TransactionDto parentTransaction = transaction.getTransaction(chargesComputeRequest.getTransactionId());
+
         Double charges = getCharges(
                 ChargesComputeRequest
                         .builder()
@@ -223,8 +225,8 @@ public class ChargeProcessingService {
                 .id(UUID.randomUUID())
                 .chargeId(UUID.randomUUID().toString())
                 .chargeAmount(charges.longValue())
-                .accountId("ACCOUNT_ID")
-                .description("Charge For " + ChargeCategory.TRANSACTION.toString())
+                .accountId(parentTransaction.getAccountId())
+                .description("Charge For Transaction with Id : " + parentTransaction.getId().toString())
                 .createdAt(new Timestamp(System.currentTimeMillis()))
                 .updatedAt(new Timestamp(System.currentTimeMillis()))
                 .build();
@@ -236,10 +238,10 @@ public class ChargeProcessingService {
             log.info("Charge Created Successfully for transaction Id {}", chargesComputeRequest.getTransactionId());
         }
 
-        TransactionDto transactionDto = ChargeTransformation.toTransaction(chargeDto);
+        TransactionDto transactionDto = ChargeTransformation.toTransaction(chargeDto, parentTransaction);
         transaction.createTransaction(transactionDto);
 
-        LedgerEntryDto ledgerEntryDto = ChargeTransformation.toLedgerEntry(chargeDto);
+        LedgerEntryDto ledgerEntryDto = ChargeTransformation.toLedgerEntry(transactionDto);
         ledger.createLedgerEntry(ledgerEntryDto);
 
         return "";
