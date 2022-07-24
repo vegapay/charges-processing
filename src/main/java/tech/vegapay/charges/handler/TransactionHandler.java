@@ -67,7 +67,7 @@ public class TransactionHandler implements Transaction {
             }
 
         } catch (Exception ex) {
-            log.error("Error while getting Bill Details for billId id : {}", transactionId, ex);
+            log.error("Error while getting Transaction Details for Transaction Id : {}", transactionId, ex);
         }
         return null;
     }

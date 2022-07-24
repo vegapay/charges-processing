@@ -12,6 +12,8 @@ import tech.vegapay.commons.dto.*;
 import tech.vegapay.commons.dto.policies.AllPolicies;
 import tech.vegapay.commons.dto.policies.BNPLPolicy;
 import tech.vegapay.commons.dto.policies.charges.*;
+import tech.vegapay.commons.dto.policies.charges.card.TransactionCharge;
+import tech.vegapay.commons.enums.TransactionEnum;
 import tech.vegapay.commons.utils.ChargeTransformation;
 
 import java.sql.Timestamp;
@@ -56,7 +58,7 @@ public class ChargeProcessingService {
 
         assert accountDto != null;
 
-        Double charges = getCharges(
+        long charges = getCharges(
                 ChargesComputeRequest
                         .builder()
                         .billId(billId)
@@ -66,9 +68,9 @@ public class ChargeProcessingService {
         );
 
         ChargeDto chargeDto = ChargeDto.builder()
-                .id(UUID.randomUUID())
+                .id(UUID.randomUUID().toString())
                 .chargeId(UUID.randomUUID().toString())
-                .chargeAmount(charges.longValue())
+                .chargeAmount(charges)
                 .accountId(tempBill.getAccountId())
                 .description("Charge For " + chargeCategory)
                 .createdAt(new Timestamp(System.currentTimeMillis()))
@@ -77,49 +79,44 @@ public class ChargeProcessingService {
 
         chargeDto = charge.createCharge(chargeDto);
 
-        if (charges != null && chargeDto.getId() != null) {
+        if (chargeDto.getId() != null) {
             log.info("Charge Created Successfully for account Id {}", tempBill.getAccountId());
         }
     }
 
-    public Double getCharges(ChargesComputeRequest charges) {
+    public long getCharges(ChargesComputeRequest chargesComputeRequest) {
         //we need to fetch charges file/json using programId
 
-        AllPolicies allPolicies = program.getProgramPolicy(charges.getProgramId());
+        AllPolicies allPolicies = program.getProgramPolicy(chargesComputeRequest.getProgramId());
         ChargePolicy chargePolicy = allPolicies.getChargePolicy();
         BNPLPolicy bnplPolicy = allPolicies.getBnplPolicy();
-        double value = 0;
-        BillDto tempBill = bill.getBill(charges.getBillId());
+        long value = 0;
+        BillDto tempBill = bill.getBill(chargesComputeRequest.getBillId());
 
         // for testing changing bill due date;
         tempBill.setBillDate(new Date("2022/06/17 00:00:00"));
-        switch (charges.getEventType()) {
+        switch (chargesComputeRequest.getEventType()) {
             //todo :: fix start date here..
             case BILL_DATE_TO_DUE_DATE:
-                value = computeCharges(chargePolicy.getChargeRules(), charges.getEventType(), calculateDate(tempBill, bnplPolicy.getBillDate()), tempBill.getBillAmount());
+                value = computeCharges(chargePolicy.getChargeRules(), chargesComputeRequest.getEventType(), calculateDate(tempBill, bnplPolicy.getBillDate()), tempBill.getBillAmount());
                 break;
             case DUE_DATE_TO_HARD_BLOCK:
-                value = computeCharges(chargePolicy.getChargeRules(), charges.getEventType(), calculateDate(tempBill, bnplPolicy.getDueDate()), tempBill.getBillAmount());
+                value = computeCharges(chargePolicy.getChargeRules(), chargesComputeRequest.getEventType(), calculateDate(tempBill, bnplPolicy.getDueDate()), tempBill.getBillAmount());
                 break;
             case HARD_BLOCK_TO_PERMANENT_BLOCK:
-                value = computeCharges(chargePolicy.getChargeRules(), charges.getEventType(), calculateDate(tempBill, bnplPolicy.getHardDueDate()), tempBill.getBillAmount());
+                value = computeCharges(chargePolicy.getChargeRules(), chargesComputeRequest.getEventType(), calculateDate(tempBill, bnplPolicy.getHardDueDate()), tempBill.getBillAmount());
+                break;
+            case TRANSACTION:
+                value = computeTransactionCharges(chargePolicy.getChargeRules(), chargesComputeRequest.getTransactionId());
                 break;
             default:
-                value = 10;
+                value = 10 * 100;
         }
 
         return value;
     }
 
-    public Date calculateDate(BillDto billDto, String date) {
-        Calendar calendar = Calendar.getInstance();
-        calendar.setTime(billDto.getBillDate());
-        calendar.set(Calendar.DATE, Integer.parseInt(date));
-
-        return calendar.getTime();
-    }
-
-    private double computeCharges(ChargeRule[] chargeRules, ChargeCategory category, Date startDate, double billAmount) {
+    private long computeCharges(ChargeRule[] chargeRules, ChargeCategory category, Date startDate, double billAmount) {
         for (ChargeRule temp : chargeRules) {
             if (temp.getChargeCategory().equals(category)) {
                 PerDayCharge perDayCharge = temp.getPerDayCharge();
@@ -139,7 +136,68 @@ public class ChargeProcessingService {
         return 0;
     }
 
-    private double getEstimatedCharges(Date startDate, double billAmount, AbstractCharges charges) {
+    private long computeTransactionCharges(ChargeRule[] chargeRules, String transactionId) {
+
+        long value = 0L;
+        for (ChargeRule temp : chargeRules) {
+            if (temp.getChargeCategory().equals(ChargeCategory.TRANSACTION)) {
+                PayoutMechanismCharge payoutMechanismCharge = temp.getPayoutMechanismCharge();
+                TransactionDto transactionDto = transaction.getTransaction(transactionId);
+                TransactionEnum.TransactionSubType subType = transactionDto.getTransactionSubtype();
+                switch (subType) {
+                    //todo :: fix start date here..
+                    case ECOM:
+                        value = calculateCharges(payoutMechanismCharge.getCardCharges().getEcommerce(), transactionDto);
+                        break;
+                    case POS:
+                        value = calculateCharges(payoutMechanismCharge.getCardCharges().getPos(), transactionDto);
+                        break;
+                    case CONTACTLESS:
+                        value = calculateCharges(payoutMechanismCharge.getCardCharges().getContactLess(), transactionDto);
+                        break;
+                    case ATM:
+                        value = calculateCharges(payoutMechanismCharge.getCardCharges().getAtm(), transactionDto);
+                        break;
+                    case UPI:
+                        value = calculateCharges(payoutMechanismCharge.getUpi(), transactionDto);
+                        break;
+                    case BANK_TRANSFER:
+                        value = calculateCharges(payoutMechanismCharge.getBankTransfer(), transactionDto);
+                        break;
+                    case GV:
+                        value = calculateCharges(payoutMechanismCharge.getGv(), transactionDto);
+                        break;
+                    default:
+                        value = 0L;
+                        break;
+                }
+            }
+        }
+        return value;
+    }
+
+    private long calculateCharges(TransactionCharge transactionCharge, TransactionDto transactionDto) {
+        if (transactionCharge.getChargeType().equals(ChargeType.AMOUNT)) {
+            double tempCharge = transactionCharge.getValue();
+            if (!transactionCharge.isInclusiveOfGst()) {
+                tempCharge += tempCharge * transactionCharge.getGstTax() / 100;
+            }
+            double tempDouble = tempCharge * 100;
+            return Double.valueOf(tempDouble).longValue();
+        } else if (transactionCharge.getChargeType().equals(ChargeType.PERCENTAGE)) {
+            double tempCharge = transactionDto.getAmount() * transactionCharge.getValue() / 100;
+            if (!transactionCharge.isInclusiveOfGst()) {
+                tempCharge += tempCharge * transactionCharge.getGstTax() / 100;
+            }
+            double tempDouble = tempCharge * 100;
+            return Double.valueOf(tempDouble).longValue();
+        } else {
+            //todo :: add exception here
+            return 0;
+        }
+    }
+
+    private long getEstimatedCharges(Date startDate, double billAmount, AbstractCharges charges) {
         Date currentDate = new Date();
         long days = getDifferenceDays(startDate, currentDate);
         if (charges.getChargeType().equals(ChargeType.AMOUNT)) {
@@ -147,25 +205,33 @@ public class ChargeProcessingService {
             if (!charges.isInclusiveOfGst()) {
                 tempCharge += tempCharge * charges.getGstTax() / 100;
             }
-            return tempCharge;
+            double tempDouble = tempCharge * 100;
+            return Double.valueOf(tempDouble).longValue();
         } else if (charges.getChargeType().equals(ChargeType.PERCENTAGE)) {
             double tempCharge = billAmount * charges.getValue() * days / (365 * 100);
             if (!charges.isInclusiveOfGst()) {
                 tempCharge += tempCharge * charges.getGstTax() / 100;
             }
-            return tempCharge;
+            double tempDouble = tempCharge * 100;
+            return Double.valueOf(tempDouble).longValue();
         } else {
             //todo :: add exception here
             return 0;
         }
     }
 
+    public Date calculateDate(BillDto billDto, String date) {
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTime(billDto.getBillDate());
+        calendar.set(Calendar.DATE, Integer.parseInt(date));
+
+        return calendar.getTime();
+    }
 
     public static long getDifferenceDays(Date d1, Date d2) {
         long diff = d2.getTime() - d1.getTime();
         return TimeUnit.DAYS.convert(diff, TimeUnit.MILLISECONDS);
     }
-
 
     public void processBillForProgramId(String programId, String eventType) {
 
@@ -185,9 +251,9 @@ public class ChargeProcessingService {
         accountDtoList.forEach(it -> {
             try {
                 // find bill for account ids
-                BillDto billDto = bill.getLatestBill(it.getAccountId());
+                BillDto billDto = bill.getLatestBill(it.getId());
                 if (billDto == null) {
-                    log.error("No bill found for accountId : {}", it.getAccountId());
+                    log.error("No bill found for accountId : {}", it.getId());
                     return;
                 }
 
@@ -202,7 +268,7 @@ public class ChargeProcessingService {
                     kafkaTemplate.send(kafkaChargeProcessingTopicByBillId, billDto.getId().toString(), map);
                 }
             } catch (Exception e) {
-                log.error("Error while processing bill for accountId : {}", it.getAccountId());
+                log.error("Error while processing bill for accountId : {}", it.getId());
             }
         });
 
@@ -212,7 +278,7 @@ public class ChargeProcessingService {
 
         TransactionDto parentTransaction = transaction.getTransaction(chargesComputeRequest.getTransactionId());
 
-        Double charges = getCharges(
+        long charges = getCharges(
                 ChargesComputeRequest
                         .builder()
                         .transactionId(chargesComputeRequest.getTransactionId())
@@ -222,9 +288,9 @@ public class ChargeProcessingService {
         );
 
         ChargeDto chargeDto = ChargeDto.builder()
-                .id(UUID.randomUUID())
+                .id(UUID.randomUUID().toString())
                 .chargeId(UUID.randomUUID().toString())
-                .chargeAmount(charges.longValue())
+                .chargeAmount(charges)
                 .accountId(parentTransaction.getAccountId())
                 .description("Charge For Transaction with Id : " + parentTransaction.getId().toString())
                 .createdAt(new Timestamp(System.currentTimeMillis()))
@@ -234,11 +300,18 @@ public class ChargeProcessingService {
         chargeDto = charge.createCharge(chargeDto);
 
 
-        if (charges != null && chargeDto.getId() != null) {
+        if (chargeDto.getId() != null) {
             log.info("Charge Created Successfully for transaction Id {}", chargesComputeRequest.getTransactionId());
         }
 
         TransactionDto transactionDto = ChargeTransformation.toTransaction(chargeDto, parentTransaction);
+
+        LockDto lockDto = account.createLockonAccount(parentTransaction.getAccountId());
+        AccountDto accountDto = account.getAccount(parentTransaction.getAccountId());
+        long availableLimit = accountDto.getAvailableLimit();
+        long availableLimitAfterTransaction = availableLimit - charges;
+        //todo :: update account available limit..
+        transactionDto.setAfterTransactionBalance(availableLimitAfterTransaction);
         transaction.createTransaction(transactionDto);
 
         LedgerEntryDto ledgerEntryDto = ChargeTransformation.toLedgerEntry(transactionDto);

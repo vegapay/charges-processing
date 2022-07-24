@@ -20,12 +20,12 @@ public class ChargesController {
     }
 
     @PostMapping("/get")
-    public ResponseEntity<Double> getCharges(@RequestBody ChargesComputeRequest charges) {
+    public ResponseEntity<Long> getCharges(@RequestBody ChargesComputeRequest charges) {
         log.info("Received Request to getCharges with Request Body {}", charges);
         try {
             return new ResponseEntity<>(chargeProcessingService.getCharges(charges), HttpStatus.OK);
         } catch (Exception ex) {
-            return new ResponseEntity<>(0D, HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(0L, HttpStatus.BAD_REQUEST);
         }
     }
 

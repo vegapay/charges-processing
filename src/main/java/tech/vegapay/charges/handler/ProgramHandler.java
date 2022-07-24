@@ -43,7 +43,7 @@ public class ProgramHandler implements Program {
             }
 
         } catch (Exception ex) {
-            log.error("Error while getting All policies for billId id : {}", programId, ex);
+            log.error("Error while getting All policies for programId : {}", programId, ex);
         }
         return null;
     }
