@@ -91,20 +91,16 @@ public class ChargeProcessingService {
         ChargePolicy chargePolicy = allPolicies.getChargePolicy();
         BNPLPolicy bnplPolicy = allPolicies.getBnplPolicy();
         long value = 0;
-        BillDto tempBill = bill.getBill(chargesComputeRequest.getBillId());
-
-        // for testing changing bill due date;
-        tempBill.setBillDate(new Date("2022/06/17 00:00:00"));
         switch (chargesComputeRequest.getEventType()) {
             //todo :: fix start date here..
             case BILL_DATE_TO_DUE_DATE:
-                value = computeCharges(chargePolicy.getChargeRules(), chargesComputeRequest.getEventType(), calculateDate(tempBill, bnplPolicy.getBillDate()), tempBill.getBillAmount());
+                value = computeCharges(chargePolicy.getChargeRules(), chargesComputeRequest.getEventType(), bnplPolicy.getBillDate(), chargesComputeRequest.getBillId());
                 break;
             case DUE_DATE_TO_HARD_BLOCK:
-                value = computeCharges(chargePolicy.getChargeRules(), chargesComputeRequest.getEventType(), calculateDate(tempBill, bnplPolicy.getDueDate()), tempBill.getBillAmount());
+                value = computeCharges(chargePolicy.getChargeRules(), chargesComputeRequest.getEventType(), bnplPolicy.getDueDate(), chargesComputeRequest.getBillId());
                 break;
             case HARD_BLOCK_TO_PERMANENT_BLOCK:
-                value = computeCharges(chargePolicy.getChargeRules(), chargesComputeRequest.getEventType(), calculateDate(tempBill, bnplPolicy.getHardDueDate()), tempBill.getBillAmount());
+                value = computeCharges(chargePolicy.getChargeRules(), chargesComputeRequest.getEventType(), bnplPolicy.getHardDueDate(), chargesComputeRequest.getBillId());
                 break;
             case TRANSACTION:
                 value = computeTransactionCharges(chargePolicy.getChargeRules(), chargesComputeRequest.getTransactionId());
@@ -116,7 +112,14 @@ public class ChargeProcessingService {
         return value;
     }
 
-    private long computeCharges(ChargeRule[] chargeRules, ChargeCategory category, Date startDate, double billAmount) {
+    private long computeCharges(ChargeRule[] chargeRules, ChargeCategory category, String date, String billId) {
+        BillDto tempBill = bill.getBill(billId);
+
+        // for testing changing bill due date;
+        tempBill.setBillDate(new Date("2022/06/17 00:00:00"));
+        double billAmount = tempBill.getBillAmount();
+        Date startDate = calculateDate(tempBill, date);
+
         for (ChargeRule temp : chargeRules) {
             if (temp.getChargeCategory().equals(category)) {
                 PerDayCharge perDayCharge = temp.getPerDayCharge();
@@ -314,7 +317,10 @@ public class ChargeProcessingService {
         transactionDto.setAfterTransactionBalance(availableLimitAfterTransaction);
         transaction.createTransaction(transactionDto);
 
+        account.releaseAccountLock(parentTransaction.getAccountId(), lockDto.getToken());
+
         LedgerEntryDto ledgerEntryDto = ChargeTransformation.toLedgerEntry(transactionDto);
+        ledgerEntryDto.setAfterTransactionBalance(availableLimitAfterTransaction);
         ledger.createLedgerEntry(ledgerEntryDto);
 
         return "";

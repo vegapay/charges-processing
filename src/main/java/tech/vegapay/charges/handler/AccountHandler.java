@@ -12,10 +12,8 @@ import org.springframework.util.ObjectUtils;
 import org.springframework.web.client.RestTemplate;
 import tech.vegapay.commons.dto.AccountDto;
 import tech.vegapay.commons.dto.LockDto;
-import tech.vegapay.commons.dto.TransactionDto;
 import tech.vegapay.commons.enums.AccountApi;
 import tech.vegapay.commons.enums.LockApi;
-import tech.vegapay.commons.enums.TransactionApi;
 import tech.vegapay.commons.utils.InternalClientUtil;
 
 import java.util.Arrays;
@@ -96,7 +94,7 @@ public class AccountHandler implements Account {
                 .build();
 
         try {
-            final String url = transactionBaseUrl + LockApi.CREATE_LOCK.getUrl() + accountId;
+            final String url = transactionBaseUrl + LockApi.CREATE_LOCK.getUrl().replace("{accountId}", accountId);
 
             ResponseEntity<LockDto> responseEntity = restTemplate.exchange(url, HttpMethod.POST, httpEntity, LockDto.class);
 
@@ -115,12 +113,11 @@ public class AccountHandler implements Account {
     public String releaseAccountLock(String accountId, String token) {
         HttpEntity httpEntity = internalClientUtil.getClientBuilder()
                 .setAccept()
-                .setRequest("token", token)
                 .setContentType(MediaType.APPLICATION_JSON)
                 .build();
 
         try {
-            final String url = baseUrl + LockApi.RELEASE_LOCK.getUrl() + accountId;
+            final String url = transactionBaseUrl + LockApi.RELEASE_LOCK.getUrl().replace("{accountId}", accountId) + "?token=" + token;
 
             ResponseEntity<String> responseEntity = restTemplate.exchange(url, HttpMethod.POST, httpEntity, String.class);
 
