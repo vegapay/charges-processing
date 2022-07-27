@@ -35,6 +35,7 @@ public class ChargesController {
         try {
             return new ResponseEntity<>(chargeProcessingService.applyTransactionCharges(chargesComputeRequest), HttpStatus.OK);
         } catch (Exception ex) {
+            log.error("Error while applying charges", ex.getMessage());
             return new ResponseEntity<>("", HttpStatus.BAD_REQUEST);
         }
     }

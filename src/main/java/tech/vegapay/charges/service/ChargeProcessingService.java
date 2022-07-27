@@ -11,11 +11,9 @@ import tech.vegapay.charges.handler.*;
 import tech.vegapay.commons.dto.*;
 import tech.vegapay.commons.dto.policies.AllPolicies;
 import tech.vegapay.commons.dto.policies.BNPLPolicy;
-import tech.vegapay.commons.dto.policies.BillingCycle;
 import tech.vegapay.commons.dto.policies.charges.*;
 import tech.vegapay.commons.dto.policies.charges.card.TransactionCharge;
 import tech.vegapay.commons.enums.TransactionEnum;
-import tech.vegapay.commons.utils.BillingCycleUtil;
 import tech.vegapay.commons.utils.ChargeTransformation;
 
 import java.sql.Timestamp;
@@ -73,6 +71,9 @@ public class ChargeProcessingService {
                 .id(UUID.randomUUID().toString())
                 .chargeId(UUID.randomUUID().toString())
                 .chargeAmount(charges)
+                .dueCharge(charges)
+                .paidCharge(0L)
+                .status(ChargeStatus.UNPAID)
                 .accountId(tempBill.getAccountId())
                 .description("Charge For " + chargeCategory)
                 .createdAt(new Timestamp(System.currentTimeMillis()))
@@ -91,7 +92,9 @@ public class ChargeProcessingService {
 
         AllPolicies allPolicies = program.getProgramPolicy(chargesComputeRequest.getProgramId());
         ChargePolicy chargePolicy = allPolicies.getChargePolicy().get();
+        log.info("Charge policy: {}", chargePolicy);
         BNPLPolicy bnplPolicy = allPolicies.getBNPLPolicy().get();
+        log.info("BNPL policy: {}", bnplPolicy);
         long value = 0;
         switch (chargesComputeRequest.getEventType()) {
             //todo :: fix start date here..
@@ -148,6 +151,7 @@ public class ChargeProcessingService {
                 PayoutMechanismCharge payoutMechanismCharge = temp.getPayoutMechanismCharge();
                 TransactionDto transactionDto = transaction.getTransaction(transactionId);
                 TransactionEnum.TransactionSubType subType = transactionDto.getTransactionSubtype();
+                log.info("Computing charges for transaction subtype: {}", subType);
                 switch (subType) {
                     //todo :: fix start date here..
                     case ECOM:
@@ -177,10 +181,12 @@ public class ChargeProcessingService {
                 }
             }
         }
+        log.info("Computing charges for transaction value {}", value);
         return value;
     }
 
     private long calculateCharges(TransactionCharge transactionCharge, TransactionDto transactionDto) {
+        log.info("Computing charges for transaction", transactionCharge.toString());
         if (transactionCharge.getChargeType().equals(ChargeType.AMOUNT)) {
             double tempCharge = transactionCharge.getValue();
             if (!transactionCharge.isInclusiveOfGst()) {
@@ -295,6 +301,9 @@ public class ChargeProcessingService {
                 .id(UUID.randomUUID().toString())
                 .chargeId(UUID.randomUUID().toString())
                 .chargeAmount(charges)
+                .dueCharge(charges)
+                .paidCharge(0L)
+                .status(ChargeStatus.UNPAID)
                 .accountId(parentTransaction.getAccountId())
                 .description("Charge For Transaction with Id : " + parentTransaction.getId().toString())
                 .createdAt(new Timestamp(System.currentTimeMillis()))
