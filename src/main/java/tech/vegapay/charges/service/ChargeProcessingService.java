@@ -11,9 +11,11 @@ import tech.vegapay.charges.handler.*;
 import tech.vegapay.commons.dto.*;
 import tech.vegapay.commons.dto.policies.AllPolicies;
 import tech.vegapay.commons.dto.policies.BNPLPolicy;
+import tech.vegapay.commons.dto.policies.BillingCycle;
 import tech.vegapay.commons.dto.policies.charges.*;
 import tech.vegapay.commons.dto.policies.charges.card.TransactionCharge;
 import tech.vegapay.commons.enums.TransactionEnum;
+import tech.vegapay.commons.utils.BillingCycleUtil;
 import tech.vegapay.commons.utils.ChargeTransformation;
 
 import java.sql.Timestamp;
@@ -88,13 +90,13 @@ public class ChargeProcessingService {
         //we need to fetch charges file/json using programId
 
         AllPolicies allPolicies = program.getProgramPolicy(chargesComputeRequest.getProgramId());
-        ChargePolicy chargePolicy = allPolicies.getChargePolicy();
-        BNPLPolicy bnplPolicy = allPolicies.getBnplPolicy();
+        ChargePolicy chargePolicy = allPolicies.getChargePolicy().get();
+        BNPLPolicy bnplPolicy = allPolicies.getBNPLPolicy().get();
         long value = 0;
         switch (chargesComputeRequest.getEventType()) {
             //todo :: fix start date here..
             case BILL_DATE_TO_DUE_DATE:
-                value = computeCharges(chargePolicy.getChargeRules(), chargesComputeRequest.getEventType(), bnplPolicy.getBillDate(), chargesComputeRequest.getBillId());
+                value = computeCharges(chargePolicy.getChargeRules(), chargesComputeRequest.getEventType(), bnplPolicy.getBillGenerationDate(), chargesComputeRequest.getBillId());
                 break;
             case DUE_DATE_TO_HARD_BLOCK:
                 value = computeCharges(chargePolicy.getChargeRules(), chargesComputeRequest.getEventType(), bnplPolicy.getDueDate(), chargesComputeRequest.getBillId());
@@ -106,13 +108,12 @@ public class ChargeProcessingService {
                 value = computeTransactionCharges(chargePolicy.getChargeRules(), chargesComputeRequest.getTransactionId());
                 break;
             default:
-                value = 10 * 100;
         }
 
         return value;
     }
 
-    private long computeCharges(ChargeRule[] chargeRules, ChargeCategory category, String date, String billId) {
+    private long computeCharges(ChargeRule[] chargeRules, ChargeCategory category, int date, String billId) {
         BillDto tempBill = bill.getBill(billId);
 
         // for testing changing bill due date;
@@ -223,10 +224,10 @@ public class ChargeProcessingService {
         }
     }
 
-    public Date calculateDate(BillDto billDto, String date) {
+    public Date calculateDate(BillDto billDto, int date) {
         Calendar calendar = Calendar.getInstance();
         calendar.setTime(billDto.getBillDate());
-        calendar.set(Calendar.DATE, Integer.parseInt(date));
+        calendar.set(Calendar.DATE, date);
 
         return calendar.getTime();
     }

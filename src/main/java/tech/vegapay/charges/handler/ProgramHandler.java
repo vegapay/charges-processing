@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.ObjectUtils;
 import org.springframework.web.client.RestTemplate;
 import tech.vegapay.commons.dto.policies.AllPolicies;
-import tech.vegapay.commons.enums.ProgramApi;
+import tech.vegapay.commons.enums.PolicyApi;
 import tech.vegapay.commons.utils.InternalClientUtil;
 
 @Service
@@ -34,7 +34,7 @@ public class ProgramHandler implements Program {
 
         try {
 
-            final String url = baseUrl + ProgramApi.GET_PROGRAM_POLICY.getUrl().replace("{programId}", programId);
+            final String url = baseUrl + PolicyApi.GET_POLICY.getUrl().replace("{programId}", programId);
             log.info("url : {}", url);
             ResponseEntity<AllPolicies> responseEntity = restTemplate.exchange(url, HttpMethod.GET, httpEntity, AllPolicies.class);
             log.info("responseEntity : {}", responseEntity);
